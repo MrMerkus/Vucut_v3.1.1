@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Hareket Analiz Sistemi v3</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Barlow+Condensed:wght@200;400;600;700;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --teal:      #00e5cc;
+      --teal-dim:  #00bfa5;
+      --teal-dark: #004d45;
+      --pink:      #ff4081;
+      --yellow:    #ffd600;
+      --green:     #69ff47;
+      --red:       #ff1744;
+      --purple:    #e040fb;
+      --orange:    #ff6d00;
+      --bg:        #030810;
+      --bg2:       #070f1c;
+      --bg3:       #0c1828;
+      --bg4:       #111f32;
+      --border:    #162840;
+      --border2:   #1f3a55;
+      --text:      #c8e6f0;
+      --text-dim:  #4a7a90;
+      --safe-top:  env(safe-area-inset-top, 0px);
+      --safe-bot:  env(safe-area-inset-bottom, 0px);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animasyonlu arka plan grid */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(0,229,204,.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,204,.02) 1px, transparent 1px);
+      background-size: 50px 50px;
+    }
+
+    /* ─── HEADER ─────────────────────────────────── */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(3,8,16,.92);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px;
+      padding-top: calc(10px + var(--safe-top));
+      gap: 12px; flex-wrap: wrap;
+    }
+    .hd-left { display: flex; flex-direction: column; gap: 2px; }
+    .hd-version {
+      font-size: 8px; letter-spacing: 3px; color: var(--teal-dim);
+      font-family: 'Space Mono', monospace;
+    }
+    h1 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: clamp(20px, 4vw, 34px); font-weight: 900;
+      letter-spacing: 4px; color: var(--teal); line-height: 1;
+      text-shadow: 0 0 24px rgba(0,229,204,.45);
+    }
+    .hd-sub { font-size: 8px; color: var(--text-dim); letter-spacing: 2px; margin-top: 2px; }
+
+    .hd-stats {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    .stat-pill {
+      background: var(--bg3); border: 1px solid var(--border);
+      padding: 5px 10px; font-size: 9px; letter-spacing: 1px;
+      display: flex; align-items: center; gap: 5px;
+      white-space: nowrap;
+    }
+    .stat-pill .val {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 16px; font-weight: 700; line-height: 1;
+    }
+    #fps-val  { color: var(--yellow); }
+    #cam-count-val { color: var(--teal); }
+    #person-count-val { color: var(--green); }
+    #model-badge {
+      font-size: 9px; background: var(--bg3); border: 1px solid var(--border);
+      padding: 5px 10px; letter-spacing: 1px; color: var(--text-dim);
+      transition: all .4s;
+      white-space: nowrap;
+    }
+    #model-badge.ready { color: var(--green); border-color: var(--green); text-shadow: 0 0 8px rgba(105,255,71,.5); }
+    #model-badge.error { color: var(--red); border-color: var(--red); }
+
+    /* ─── ANA LAYOUT ───────────────────────────────── */
+    .app-body {
+      position: relative; z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      grid-template-rows: auto 1fr;
+      gap: 0;
+      min-height: calc(100vh - 70px);
+    }
+    @media (max-width: 900px) {
+      .app-body { grid-template-columns: 1fr; }
+    }
+
+    /* ─── KAMERA ALAN (Sol) ───────────────────────── */
+    .cameras-area {
+      grid-column: 1; grid-row: 1 / 3;
+      display: flex; flex-direction: column; gap: 0;
+      border-right: 1px solid var(--border);
+    }
+    @media (max-width: 900px) {
+      .cameras-area { grid-column: 1; grid-row: 1; border-right: none; border-bottom: 1px solid var(--border); }
+    }
+
+    /* Kamera toolbar */
+    .cam-toolbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+      background: var(--bg2); flex-wrap: wrap;
+    }
+    .cam-toolbar-title {
+      font-size: 9px; letter-spacing: 3px; color: var(--text-dim);
+      flex: 1; white-space: nowrap;
+    }
+    .tb-btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 7px 12px; border: 1px solid var(--border);
+      background: var(--bg3); color: var(--text-dim);
+      font-family: 'Space Mono', monospace; font-size: 9px;
+      letter-spacing: 1px; cursor: pointer;
+      transition: all .2s; white-space: nowrap; min-height: 36px;
+    }
+    .tb-btn:hover:not(:disabled) { border-color: var(--teal-dim); color: var(--teal); }
+    .tb-btn:active { transform: scale(.97); }
+    .tb-btn:disabled { opacity: .3; cursor: not-allowed; }
+    .tb-btn.primary { background: var(--teal); color: var(--bg); border-color: var(--teal); font-weight: 700; }
+    .tb-btn.primary:hover { background: #00fff5; box-shadow: 0 0 16px rgba(0,229,204,.4); }
+    .tb-btn.danger { border-color: var(--red); color: var(--red); }
+    .tb-btn.danger:hover { background: rgba(255,23,68,.1); }
+
+    /* Kamera grid */
+    .cameras-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      flex: 1;
+    }
+    @media (max-width: 600px) {
+      .cameras-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Boş durum */
+    .empty-cameras {
+      grid-column: 1 / -1;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; padding: 80px 20px;
+      color: var(--text-dim); background: var(--bg2);
+    }
+    .empty-icon {
+      font-size: 56px; color: var(--border2);
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:.2;transform:scale(1)} 50%{opacity:.5;transform:scale(1.05)} }
+    .empty-cameras p { font-size: 10px; letter-spacing: 2px; text-align: center; }
+    .empty-cameras .hint { font-size: 8px; color: var(--border2); letter-spacing: 1px; }
+
+    /* ─── TEK KAMERA KARTI ────────────────────────── */
+    .cam-card {
+      position: relative; background: var(--bg2);
+      display: flex; flex-direction: column;
+      animation: cardSlideIn .3s ease;
+    }
+    @keyframes cardSlideIn { from{opacity:0;transform:scale(.97)} to{opacity:1;transform:scale(1)} }
+
+    .cam-card-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; border-bottom: 1px solid var(--border);
+      background: var(--bg3); flex-shrink: 0;
+    }
+    .cam-card-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--border2); flex-shrink: 0;
+      transition: background .3s, box-shadow .3s;
+    }
+    .cam-card.streaming .cam-card-dot {
+      background: var(--green); box-shadow: 0 0 8px rgba(105,255,71,.6);
+      animation: dotBlink 1.5s infinite;
+    }
+    @keyframes dotBlink { 0%,100%{opacity:1} 50%{opacity:.5} }
+    .cam-card-name {
+      font-family: 'Barlow Condensed', sans-serif; font-size: 14px;
+      font-weight: 700; letter-spacing: 2px; color: var(--text);
+      flex: 1;
+    }
+    .cam-card-name[contenteditable="true"] {
+      outline: none; border-bottom: 1px dashed var(--teal-dim);
+      cursor: text; color: var(--teal);
+    }
+    .cam-fps {
+      font-size: 8px; color: var(--text-dim); letter-spacing: 1px;
+      background: var(--bg4); padding: 2px 6px;
+    }
+    .cam-fps .fv { color: var(--yellow); font-size: 10px; }
+    .cam-card-actions { display: flex; gap: 4px; }
+    .icon-btn {
+      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--text-dim); font-size: 13px; cursor: pointer;
+      transition: all .2s;
+    }
+    .icon-btn:hover { border-color: var(--teal-dim); color: var(--teal); }
+    .icon-btn.remove:hover { border-color: var(--red); color: var(--red); }
+
+    /* Canvas wrap */
+    .cam-canvas-wrap {
+      position: relative; width: 100%;
+      aspect-ratio: 16/9;
+      background: var(--bg); overflow: hidden; flex-shrink: 0;
+    }
+    .cam-canvas-wrap video,
+    .cam-canvas-wrap canvas {
+      position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+    }
+    .cam-canvas-wrap canvas { z-index: 2; }
+    .cam-canvas-wrap video.mirror { transform: rotateY(180deg); }
+
+    .cam-grid-overlay {
+      position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(0,229,204,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,204,.025) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .cam-corners { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+    .cam-corners::before, .cam-corners::after,
+    .cam-canvas-wrap::before, .cam-canvas-wrap::after { display: none; }
+    .corner-tl, .corner-tr, .corner-bl, .corner-br {
+      position: absolute; width: 14px; height: 14px;
+    }
+    .corner-tl { top:5px; left:5px; border-top: 2px solid var(--teal); border-left: 2px solid var(--teal); }
+    .corner-tr { top:5px; right:5px; border-top: 2px solid var(--teal); border-right: 2px solid var(--teal); }
+    .corner-bl { bottom:5px; left:5px; border-bottom: 2px solid var(--teal); border-left: 2px solid var(--teal); }
+    .corner-br { bottom:5px; right:5px; border-bottom: 2px solid var(--teal); border-right: 2px solid var(--teal); }
+
+    .cam-placeholder {
+      position: absolute; inset: 0; z-index: 5;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+      background: var(--bg); transition: opacity .3s;
+    }
+    .cam-placeholder.hidden { opacity: 0; pointer-events: none; }
+    .cam-placeholder .ph-icon { font-size: 36px; color: var(--border2); animation: pulse 2.2s ease-in-out infinite; }
+    .cam-placeholder p { font-size: 9px; letter-spacing: 2px; color: var(--text-dim); }
+
+    /* Kamera içi overlay bilgisi */
+    .cam-overlay-info {
+      position: absolute; bottom: 8px; left: 8px; z-index: 10;
+      display: flex; gap: 4px; pointer-events: none;
+    }
+    .cam-badge-overlay {
+      font-size: 8px; letter-spacing: 1px; padding: 2px 6px;
+      background: rgba(3,8,16,.82); border: 1px solid var(--border2);
+      -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    }
+    .cam-badge-overlay.label { color: var(--teal-dim); }
+    .cam-badge-overlay.person-count { color: var(--green); }
+
+    /* Kamera içi flip butonu */
+    .cam-flip-overlay {
+      position: absolute; top: 8px; right: 8px; z-index: 10;
+      width: 36px; height: 36px;
+      background: rgba(3,8,16,.82); border: 1px solid var(--teal-dim);
+      color: var(--teal); font-size: 16px;
+      display: none; align-items: center; justify-content: center;
+      cursor: pointer; border-radius: 50%;
+      transition: all .2s; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    }
+    .cam-flip-overlay.visible { display: flex; }
+    .cam-flip-overlay:active { transform: scale(.9) rotate(180deg); }
+
+    /* Kamera altı kontroller */
+    .cam-card-footer {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 10px; border-top: 1px solid var(--border);
+      background: var(--bg3); flex-shrink: 0; flex-wrap: wrap;
+    }
+    .cam-select-wrap {
+      flex: 1; min-width: 0;
+    }
+    .cam-device-select {
+      width: 100%;
+      background: var(--bg4); border: 1px solid var(--border);
+      color: var(--text); font-family: 'Space Mono', monospace; font-size: 9px;
+      padding: 5px 7px; cursor: pointer; min-height: 32px;
+    }
+    .cam-device-select:disabled { opacity: .4; }
+    .cam-start-btn {
+      display: flex; align-items: center; gap: 5px;
+      padding: 7px 12px; border: none;
+      font-family: 'Space Mono', monospace; font-size: 9px;
+      letter-spacing: 1px; font-weight: 700; cursor: pointer;
+      transition: all .2s; white-space: nowrap; min-height: 32px;
+      background: var(--teal); color: var(--bg);
+    }
+    .cam-start-btn:hover { background: #00fff5; box-shadow: 0 0 14px rgba(0,229,204,.4); }
+    .cam-start-btn.stop { background: var(--pink); color: #fff; }
+    .cam-start-btn:active { transform: scale(.97); }
+    .cam-shot-btn {
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--text-dim); font-size: 14px; cursor: pointer; transition: all .2s;
+    }
+    .cam-shot-btn:hover:not(:disabled) { border-color: var(--teal-dim); color: var(--teal); }
+    .cam-shot-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+    /* ─── METRİK PANEL (Sağ) ─────────────────────── */
+    .metrics-sidebar {
+      grid-column: 2; grid-row: 1 / 3;
+      display: flex; flex-direction: column;
+      border-left: 1px solid var(--border);
+      max-height: calc(100vh - 70px);
+      position: sticky; top: 70px;
+    }
+    @media (max-width: 900px) {
+      .metrics-sidebar {
+        grid-column: 1; grid-row: 2;
+        position: static; max-height: none;
+        border-left: none; border-top: 1px solid var(--border);
+      }
+    }
+    .metrics-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+      background: var(--bg2); flex-shrink: 0;
+    }
+    .metrics-title {
+      font-size: 9px; letter-spacing: 3px; color: var(--text-dim); flex: 1;
+    }
+    .metrics-body {
+      flex: 1; overflow-y: auto;
+      scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+      padding: 10px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .metrics-body::-webkit-scrollbar { width: 3px; }
+    .metrics-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* Kamera grubu başlığı */
+    .cam-group-header {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 8px; background: var(--bg3); border: 1px solid var(--border);
+      border-left: 3px solid var(--group-color, var(--teal));
+      margin-top: 4px;
+    }
+    .cam-group-header:first-child { margin-top: 0; }
+    .cam-group-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--group-color, var(--teal));
+    }
+    .cam-group-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 12px; font-weight: 700; letter-spacing: 2px;
+      color: var(--group-color, var(--teal)); flex: 1;
+    }
+    .cam-group-count {
+      font-size: 8px; color: var(--text-dim); letter-spacing: 1px;
+    }
+
+    /* No person */
+    #no-person-global {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; padding: 32px 16px; border: 1px dashed var(--border);
+      color: var(--text-dim); font-size: 9px; letter-spacing: 2px; text-align: center;
+    }
+    #no-person-global .icon { font-size: 32px; color: var(--border); opacity: .5; }
+
+    /* Person card (metrics) */
+    .person-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-top: 3px solid var(--pc, var(--teal));
+      animation: cardIn .3s ease;
+    }
+    @keyframes cardIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
+    .p-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px; border-bottom: 1px solid var(--border);
+    }
+    .p-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--pc,var(--teal)); box-shadow: 0 0 6px var(--pc,var(--teal));
+      flex-shrink: 0; animation: blink 1.6s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .p-name { font-family: 'Barlow Condensed',sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 2px; color: var(--pc,var(--teal)); }
+    .p-cam-tag { font-size: 7px; letter-spacing: 1px; color: var(--text-dim); margin-left: auto; }
+    .p-body { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+
+    .sec-title { font-size: 7px; letter-spacing: 3px; color: var(--text-dim); margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+    .ag { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+    .ac { background: var(--bg3); border: 1px solid var(--border); padding: 6px; transition: border-color .3s; }
+    .ac.wide { grid-column: 1/-1; }
+    .ac.on { border-color: color-mix(in srgb, var(--pc,var(--teal)) 50%, transparent); }
+    .ac-lbl { font-size: 7px; letter-spacing: 1.5px; color: var(--text-dim); margin-bottom: 2px; }
+    .ac-val { font-family: 'Barlow Condensed',sans-serif; font-size: 18px; font-weight: 700; color: var(--pc,var(--teal)); line-height: 1; margin-bottom: 3px; transition: color .3s; }
+    .bar-wrap { height: 3px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+    .bar { height: 100%; background: var(--pc,var(--teal)); width: 0%; border-radius: 2px; transition: width .15s; }
+
+    .sg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+    .si { background: var(--bg3); border: 1px solid var(--border); padding: 5px 7px; }
+    .si-lbl { font-size: 7px; letter-spacing: 1.5px; color: var(--text-dim); margin-bottom: 2px; }
+    .si-val { font-family: 'Barlow Condensed',sans-serif; font-size: 12px; font-weight: 500; color: var(--text-dim); transition: all .3s; }
+    .si-val.yes { color: var(--green); text-shadow: 0 0 7px rgba(105,255,71,.4); }
+
+    .sym { text-align: center; }
+    .sym-score { font-family: 'Barlow Condensed',sans-serif; font-size: 34px; font-weight: 700; color: var(--pc,var(--teal)); line-height: 1; text-shadow: 0 0 12px var(--pc,var(--teal)); margin-bottom: 2px; transition: color .5s; }
+    .sym-lbl { font-size: 7px; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 6px; }
+    .sym-wrap { height: 3px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+    .sym-bar { height: 100%; background: var(--pc,var(--teal)); width: 0%; border-radius: 3px; transition: width .5s; }
+
+    /* ─── KAMERA EKLEME MODALİ ─────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(3,8,16,.85);
+      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+      opacity: 0; pointer-events: none; transition: opacity .3s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal-box {
+      background: var(--bg2); border: 1px solid var(--border2);
+      width: 100%; max-width: 480px;
+      transform: translateY(16px); transition: transform .3s;
+    }
+    .modal-overlay.open .modal-box { transform: translateY(0); }
+    .modal-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 16px; border-bottom: 1px solid var(--border);
+      background: var(--bg3);
+    }
+    .modal-title { font-family: 'Barlow Condensed',sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 3px; color: var(--teal); flex: 1; }
+    .modal-close {
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--text-dim); font-size: 16px; cursor: pointer; transition: all .2s;
+    }
+    .modal-close:hover { border-color: var(--red); color: var(--red); }
+    .modal-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    .modal-field label {
+      display: block; font-size: 8px; letter-spacing: 2px; color: var(--text-dim); margin-bottom: 5px;
+    }
+    .modal-field input, .modal-field select {
+      width: 100%; background: var(--bg3); border: 1px solid var(--border);
+      color: var(--text); font-family: 'Space Mono',monospace; font-size: 10px;
+      padding: 8px 10px; min-height: 38px;
+      transition: border-color .2s; outline: none;
+    }
+    .modal-field input:focus, .modal-field select:focus { border-color: var(--teal-dim); }
+    .modal-footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: calc(16px + var(--safe-bot)); left: 50%; transform: translateX(-50%) translateY(20px);
+      z-index: 300; background: var(--bg3); border: 1px solid var(--border2);
+      padding: 8px 16px; font-size: 9px; letter-spacing: 2px; color: var(--text);
+      opacity: 0; transition: all .3s; pointer-events: none; white-space: nowrap;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header>
+    <div class="hd-left">
+      <span class="hd-version">MEDIAPIPE TASKS-VISION 0.10.14 · ÇOK KAMERA · YÜZ KİMLİK DB · v5.0.0</span>
+      <h1>HAREKET ANALİZ SİSTEMİ</h1>
+      <p class="hd-sub">Gerçek zamanlı vücut · el · yüz · çok kamera takibi</p>
+    </div>
+    <div class="hd-stats">
+      <div class="stat-pill">FPS <span class="val" id="fps-val">0</span></div>
+      <div class="stat-pill">KAMERA <span class="val" id="cam-count-val">0</span></div>
+      <div class="stat-pill">KİŞİ <span class="val" id="person-count-val">0</span></div>
+      <div id="model-badge">● MODEL YÜKLENİYOR</div>
+    </div>
+  </header>
+
+  <div class="app-body">
+
+    <!-- KAMERALAR ALANI -->
+    <div class="cameras-area">
+      <div class="cam-toolbar">
+        <span class="cam-toolbar-title">CANLI AKIŞLAR</span>
+        <button class="tb-btn primary" id="btnAddCam">+ KAMERA EKLE</button>
+        <button class="tb-btn" id="btnShotAll" disabled>⬛ TÜMÜNÜ YAKALA</button>
+        <button class="tb-btn danger" id="btnStopAll" disabled>◼ TÜMÜNÜ DURDUR</button>
+      </div>
+      <div class="cameras-grid" id="camerasGrid">
+        <div class="empty-cameras" id="emptyCameras">
+          <div class="empty-icon">⬡</div>
+          <p>HENÜ KAMERA EKLENMEDİ</p>
+          <p class="hint">Yukarıdaki "+ KAMERA EKLE" butonuna basın</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- METRİK PANEL -->
+    <div class="metrics-sidebar">
+      <div class="metrics-header">
+        <span class="metrics-title">VERİ AKIŞI</span>
+        <span id="metrics-cam-summary" style="font-size:8px;color:var(--text-dim);letter-spacing:1px;"></span>
+        <button class="tb-btn danger" id="btnClearFaces" style="font-size:8px;padding:4px 8px;min-height:28px;">🗑 YÜZLERİ SİL</button>
+      </div>
+      <div class="metrics-body" id="metricsBody">
+        <div id="no-person-global">
+          <div class="icon">⬡</div>
+          <p>Kişi algılanmadı</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- KAMERA EKLE MODALİ -->
+  <div class="modal-overlay" id="addCamModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span class="modal-title">KAMERA EKLE</span>
+        <button class="modal-close" id="modalClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <label>KAMERA ADI</label>
+          <input type="text" id="modalCamName" placeholder="KAMERA 1" maxlength="20" />
+        </div>
+        <div class="modal-field">
+          <label>CİHAZ SEÇ</label>
+          <select id="modalDeviceSelect">
+            <option value="">Yükleniyor...</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="tb-btn" id="modalCancelBtn">İPTAL</button>
+        <button class="tb-btn primary" id="modalAddBtn">EKLE</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+<script type="module">
+
+// ─── 0. roundRect polyfill ─────────────────────────────────────────────────
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r=0){
+    if(w<2*r)r=w/2; if(h<2*r)r=h/2;
+    this.beginPath();
+    this.moveTo(x+r,y);this.arcTo(x+w,y,x+w,y+h,r);this.arcTo(x+w,y+h,x,y+h,r);
+    this.arcTo(x,y+h,x,y,r);this.arcTo(x,y,x+w,y,r);
+    this.closePath();return this;
+  };
+}
+
+// ─── YÜZ KİMLİK VERİTABANI ────────────────────────────────────────────────
+// İlk görüldüğünde yüzün geometrik "parmak izi"ni kaydeder.
+// Sonraki framelerde (farklı kameralar dahil) aynı yüz aynı global slot alır.
+// "YÜZLERİ SİL" tuşu ile tüm kayıtlar temizlenir.
+//
+// Yüz parmak izi: MediaPipe FaceLandmarks'tan 10 oransal mesafe
+// (göz arası, burun uzunluğu, çene-alın, vb.) — pozisyon/boyuttan bağımsız.
+
+class FaceIdentityDB {
+  constructor(){
+    // identities: [{globalSlot, embedding, camSources, age, active}]
+    this.identities = [];
+    this.MATCH_THRESH = 0.07; // parmak izi benzerlik eşiği (düşük = daha katı)
+    this.MAX_SLOTS    = 6;
+    this.LOST_FRAMES  = 90;   // bu kadar frame görünmezse pasif
+    // Her kameranın son frame'de bildirdiği {faceEmb, camId, poseSlot} listesi
+    this._camReports  = new Map(); // camId -> [{emb, poseSlot}]
+  }
+
+  // --- Yüz parmak izi hesapla (pozisyon-bağımsız oranlar) ---
+  extractEmbedding(flm){
+    if(!flm || flm.length < 470) return null;
+    // Referans: göz köşeleri arası mesafe (ölçek normalizasyonu)
+    const le = flm[33], re = flm[263]; // sol/sağ göz dış köşe
+    if(!le || !re) return null;
+    const scale = Math.hypot(re.x-le.x, re.y-le.y);
+    if(scale < 0.01) return null;
+
+    const dist = (a,b) => Math.hypot(flm[a].x-flm[b].x, flm[a].y-flm[b].y) / scale;
+
+    // 12 oransal mesafe — yüze özgü geometri
+    return [
+      dist(33, 263),   // göz arası (her zaman 1.0 — normalizasyon kontrolü)
+      dist(1,  168),   // burun köprüsü uzunluğu
+      dist(152, 10),   // çene-alın mesafesi
+      dist(61, 291),   // ağız genişliği
+      dist(13, 14),    // dudak aralığı (kapalı ağız)
+      dist(33, 173),   // sol göz yüksekliği
+      dist(263, 398),  // sağ göz yüksekliği
+      dist(1,  2),     // burun eni
+      dist(234, 454),  // yüz genişliği (yanak-yanak)
+      dist(10, 152),   // yüz uzunluğu
+      dist(61, 13),    // sol ağız köşe-üst dudak
+      dist(291, 13),   // sağ ağız köşe-üst dudak
+    ];
+  }
+
+  // İki embedding arasındaki L2 mesafesi
+  _dist(a, b){
+    if(!a || !b || a.length !== b.length) return Infinity;
+    return Math.sqrt(a.reduce((s,v,i) => s + (v-b[i])**2, 0));
+  }
+
+  // Kameradan gelen yüz listesini raporla
+  // faces: [{flm: FaceLandmarks, poseSlot: int, camId: int}]
+  reportFaces(camId, faces){
+    const reports = [];
+    for(const {flm, poseSlot} of faces){
+      const emb = this.extractEmbedding(flm);
+      if(emb) reports.push({emb, poseSlot, camId});
+    }
+    this._camReports.set(camId, reports);
+    this._fuse();
+  }
+
+  removeCam(camId){
+    this._camReports.delete(camId);
+    for(const id of this.identities) id.camSources.delete(camId);
+    this._fuse();
+  }
+
+  _fuse(){
+    // Tüm raporlardaki embedding'leri topla
+    const allReports = [];
+    for(const [camId, reps] of this._camReports){
+      for(const r of reps) allReports.push(r);
+    }
+
+    // Her raporu mevcut kimlikle eşleştir
+    const r2id  = new Array(allReports.length).fill(-1);
+    const idUsed = new Set();
+
+    // Maliyet matrisi: rapor x kimlik
+    const costs = [];
+    for(let ri=0; ri<allReports.length; ri++){
+      for(let ii=0; ii<this.identities.length; ii++){
+        if(!this.identities[ii].active) continue;
+        const d = this._dist(allReports[ri].emb, this.identities[ii].embedding);
+        costs.push({ri, ii, d});
+      }
+    }
+    costs.sort((a,b)=>a.d-b.d);
+
+    for(const {ri, ii, d} of costs){
+      if(r2id[ri]!==-1 || idUsed.has(ii)) continue;
+      if(d < this.MATCH_THRESH){ r2id[ri]=ii; idUsed.add(ii); }
+    }
+
+    // Eşleşemeyen raporlar yeni kimlik oluşturur
+    for(let ri=0; ri<allReports.length; ri++){
+      if(r2id[ri]!==-1) continue;
+      // Boş slot bul
+      const freeSlot = this._findFreeSlot();
+      if(freeSlot === -1) continue; // Maks kişi sayısına ulaşıldı
+      const newId = {
+        globalSlot: freeSlot,
+        embedding:  allReports[ri].emb,
+        camSources: new Set([allReports[ri].camId]),
+        age:        0,
+        active:     true,
+      };
+      this.identities[freeSlot] = newId;
+      r2id[ri] = freeSlot;
+      idUsed.add(freeSlot);
+    }
+
+    // Kimlik embedding'lerini exponential moving average ile yumuşat
+    for(let ri=0; ri<allReports.length; ri++){
+      const ii = r2id[ri]; if(ii===-1) continue;
+      const id = this.identities[ii];
+      if(!id) continue;
+      id.age = 0;
+      // Embedding EMA
+      id.embedding = id.embedding.map((v,k) => v*0.8 + allReports[ri].emb[k]*0.2);
+      id.camSources.add(allReports[ri].camId);
+    }
+
+    // Görünmeyen kimliklerin yaşını artır
+    for(let ii=0; ii<this.identities.length; ii++){
+      const id = this.identities[ii];
+      if(!id || !id.active) continue;
+      const seen = r2id.includes(ii);
+      if(!seen){
+        id.camSources.clear();
+        if(++id.age > this.LOST_FRAMES){
+          id.active = false;
+        }
+      }
+    }
+  }
+
+  _findFreeSlot(){
+    for(let i=0; i<this.MAX_SLOTS; i++){
+      if(!this.identities[i] || !this.identities[i].active) return i;
+    }
+    return -1;
+  }
+
+  // Verilen embedding için global slot döndürür (-1 = henüz kayıtlı değil)
+  resolveSlot(emb){
+    if(!emb) return -1;
+    let best=-1, bestD=this.MATCH_THRESH;
+    for(let ii=0; ii<this.identities.length; ii++){
+      const id = this.identities[ii];
+      if(!id || !id.active) continue;
+      const d = this._dist(emb, id.embedding);
+      if(d < bestD){ bestD=d; best=id.globalSlot; }
+    }
+    return best;
+  }
+
+  // Aktif kimlik slotları
+  activeSlots(){
+    return this.identities
+      .filter(id => id && id.active)
+      .map(id => ({idx: id.globalSlot, camSources: id.camSources}));
+  }
+
+  // Tüm kimlikleri sil (buton ile tetiklenir)
+  clearAll(){
+    this.identities = [];
+    this._camReports.clear();
+    // Tüm kameraların slot bilgisini de sıfırla
+    for(const cam of cameras.values()){
+      cam.slots.forEach(s=>{s.active=false;s.age=0;});
+    }
+  }
+}
+
+const faceDB = new FaceIdentityDB();
+
+// --- Basit centroid-tabanlı pose tracker (tek kamera içi, renk için) ---
+// faceDB yüz kimliğini belirler, bu sadece kamera-içi sıralama için
+class SimplePoseTracker {
+  constructor(){ this.slots = createSlots(); }
+  match(pLMs){ return pLMs.length > 0 ? matchPoses(pLMs, this.slots) : []; }
+  reset(){ this.slots.forEach(s=>{s.active=false;s.age=0;}); }
+}
+
+// ─── 1. IMPORT ────────────────────────────────────────────────────────────
+import {
+  PoseLandmarker, HandLandmarker, FaceLandmarker,
+  FilesetResolver, DrawingUtils
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+// ─── 2. GLOBAL DURUM ──────────────────────────────────────────────────────
+const COLORS = [
+  {hex:"#00e5cc",name:"KİŞİ 1"},{hex:"#ff4081",name:"KİŞİ 2"},
+  {hex:"#ffd600",name:"KİŞİ 3"},{hex:"#69ff47",name:"KİŞİ 4"},
+  {hex:"#e040fb",name:"KİŞİ 5"},{hex:"#ff6d00",name:"KİŞİ 6"},
+];
+const CAM_COLORS = ["#00e5cc","#ff4081","#ffd600","#69ff47","#e040fb","#ff6d00","#00b8ff","#ff9100"];
+const MAX_P = 6, MAX_DIST = 0.35, LOST_TICKS = 60;
+
+let poseLM = null, handLM = null, faceLM = null;
+let modelsReady = false;
+let allDevices = [];
+let isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+let cameras = new Map(); // id -> CameraInstance
+let camIdCounter = 0;
+
+// Global FPS tracker
+let globalFpsCnt = 0, globalFpsT = performance.now();
+setInterval(()=>{
+  const now = performance.now();
+  const fps = Math.round(globalFpsCnt * 1000 / (now - globalFpsT));
+  document.getElementById('fps-val').textContent = fps;
+  globalFpsCnt = 0; globalFpsT = now;
+}, 1000);
+
+// Global metrik senkronizasyon döngüsü (60ms'de bir paneli güncelle)
+setInterval(syncGlobalPersonPanel, 60);
+
+// ─── 3. MODEL KURULUM ─────────────────────────────────────────────────────
+async function setupModels(){
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+  );
+  poseLM = await PoseLandmarker.createFromOptions(vision,{
+    baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task",delegate:"GPU"},
+    runningMode:"VIDEO", numPoses:MAX_P,
+    minPoseDetectionConfidence:.5, minPosePresenceConfidence:.5, minTrackingConfidence:.5
+  });
+  handLM = await HandLandmarker.createFromOptions(vision,{
+    baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",delegate:"GPU"},
+    runningMode:"VIDEO", numHands:4,
+    minHandDetectionConfidence:.5, minHandPresenceConfidence:.5, minTrackingConfidence:.5
+  });
+  faceLM = await FaceLandmarker.createFromOptions(vision,{
+    baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",delegate:"GPU"},
+    outputFaceBlendshapes:true, runningMode:"VIDEO", numFaces:MAX_P,
+    minFaceDetectionConfidence:.5, minFacePresenceConfidence:.5, minTrackingConfidence:.5
+  });
+  modelsReady = true;
+  const badge = document.getElementById('model-badge');
+  badge.textContent = "● MODEL HAZIR";
+  badge.classList.add('ready');
+  document.getElementById('btnAddCam').disabled = false;
+}
+
+setupModels().catch(err=>{
+  console.error("Model hatası:", err);
+  const badge = document.getElementById('model-badge');
+  badge.textContent = "● MODEL HATASI";
+  badge.classList.add('error');
+});
+
+// ─── 4. CİHAZ LİSTESİ ─────────────────────────────────────────────────────
+async function refreshDevices(){
+  try {
+    let tmp = null;
+    try { tmp = await navigator.mediaDevices.getUserMedia({video:true,audio:false}); } catch(e){}
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    allDevices = devs.filter(d => d.kind === 'videoinput');
+    if(tmp) tmp.getTracks().forEach(t=>t.stop());
+  } catch(e) { allDevices = []; }
+}
+
+// ─── 5. MATH HELPERS ──────────────────────────────────────────────────────
+function angle(A,B,C){
+  const bax=A.x-B.x,bay=A.y-B.y,bcx=C.x-B.x,bcy=C.y-B.y;
+  const mag=Math.hypot(bax,bay)*Math.hypot(bcx,bcy);
+  if(!mag)return null;
+  return Math.round(Math.acos(Math.max(-1,Math.min(1,(bax*bcx+bay*bcy)/mag)))*180/Math.PI);
+}
+function safeAngle(lm,a,b,c){
+  const pa=lm[a],pb=lm[b],pc=lm[c];
+  if(!pa||!pb||!pc)return null;
+  const t=0.3;
+  if((pa.visibility!==undefined&&pa.visibility<t)||(pb.visibility!==undefined&&pb.visibility<t)||(pc.visibility!==undefined&&pc.visibility<t))return null;
+  return angle(pa,pb,pc);
+}
+function centroid(lm){
+  const idxs=[11,12,23,24,0];
+  const pts=idxs.map(i=>lm[i]).filter(p=>p&&p.visibility>.3);
+  if(!pts.length){
+    const all=lm.filter(p=>p&&(p.visibility===undefined||p.visibility>.1));
+    if(!all.length)return{cx:.5,cy:.5};
+    return{cx:all.reduce((s,p)=>s+p.x,0)/all.length,cy:all.reduce((s,p)=>s+p.y,0)/all.length};
+  }
+  return{cx:pts.reduce((s,p)=>s+p.x,0)/pts.length,cy:pts.reduce((s,p)=>s+p.y,0)/pts.length};
+}
+function headRoll(lm){const l=lm[33],r=lm[263];return(l&&r)?Math.round(Math.atan2(r.y-l.y,r.x-l.x)*180/Math.PI):null;}
+function headYaw(lm){
+  const n=lm[1],le=lm[234],re=lm[454];if(!n||!le||!re)return null;
+  const ld=Math.abs(n.x-le.x),rd=Math.abs(n.x-re.x);
+  return(ld+rd)===0?0:Math.round(((ld-rd)/(ld+rd))*90);
+}
+function mouthOpen(lm){
+  const t=lm[13],b=lm[14],l=lm[61],r=lm[291];if(!t||!b||!l||!r)return null;
+  const v=Math.hypot(t.x-b.x,t.y-b.y),h=Math.hypot(l.x-r.x,l.y-r.y);
+  return h>0?Math.round((v/h)*100):0;
+}
+function bs(cats,key){const c=cats.find(c=>c.categoryName===key);return c?+c.score:0;}
+function expression(cats){
+  const smile=(bs(cats,"mouthSmileLeft")+bs(cats,"mouthSmileRight"))/2;
+  const blink=(bs(cats,"eyeBlinkLeft")+bs(cats,"eyeBlinkRight"))/2;
+  const jaw=bs(cats,"jawOpen"),brow=bs(cats,"browInnerUp");
+  if(blink>.6)return"GÖZLER KAPALI";
+  if(jaw>.5)return"AĞIZ AÇIK";
+  if(smile>.4)return"GÜLÜMSÜYOR";
+  if(brow>.5)return"ŞAŞIRMIŞ";
+  return"NÖTR";
+}
+
+// ─── 6. TRACKER ───────────────────────────────────────────────────────────
+function createSlots(){
+  return Array.from({length:MAX_P},()=>({active:false,cx:0,cy:0,age:0}));
+}
+function matchPoses(lms, slots){
+  const n=lms.length, cents=lms.map(centroid);
+  const p2s=new Array(n).fill(-1), sU=new Array(MAX_P).fill(false);
+  const costs=[];
+  for(let i=0;i<n;i++) for(let j=0;j<MAX_P;j++){
+    if(!slots[j].active)continue;
+    costs.push({i,j,d:Math.hypot(cents[i].cx-slots[j].cx,cents[i].cy-slots[j].cy)});
+  }
+  costs.sort((a,b)=>a.d-b.d);
+  for(const{i,j,d}of costs){
+    if(p2s[i]!==-1||sU[j])continue;
+    if(d<MAX_DIST){p2s[i]=j;sU[j]=true;}
+  }
+  for(let i=0;i<n;i++){
+    if(p2s[i]!==-1)continue;
+    for(let j=0;j<MAX_P;j++){
+      if(!slots[j].active&&!sU[j]){p2s[i]=j;sU[j]=true;break;}
+    }
+  }
+  const seen=new Set(p2s.filter(j=>j!==-1));
+  for(let j=0;j<MAX_P;j++){
+    if(seen.has(j)){
+      const pi=p2s.indexOf(j),alpha=.6;
+      slots[j].active=true;
+      slots[j].cx=slots[j].cx*alpha+cents[pi].cx*(1-alpha);
+      slots[j].cy=slots[j].cy*alpha+cents[pi].cy*(1-alpha);
+      slots[j].age=0;
+    } else if(slots[j].active){
+      if(++slots[j].age>LOST_TICKS){slots[j].active=false;slots[j].age=0;}
+    }
+  }
+  return p2s;
+}
+function matchFaces(fLMs,pLMs,p2s){
+  const f2s=new Array(fLMs.length).fill(-1),sU=new Set();
+  for(let fi=0;fi<fLMs.length;fi++){
+    const fn=fLMs[fi][1]||fLMs[fi][168]||fLMs[fi][0];
+    if(!fn)continue;
+    let minD=.4,best=-1;
+    for(let pi=0;pi<pLMs.length;pi++){
+      const si=p2s[pi];if(si===-1||sU.has(si))continue;
+      const pn0=pLMs[pi][0],pn7=pLMs[pi][7],pn8=pLMs[pi][8];
+      const validPts=[pn0,pn7,pn8].filter(p=>p&&(p.visibility===undefined||p.visibility>.2));
+      if(!validPts.length)continue;
+      const hx=validPts.reduce((s,p)=>s+p.x,0)/validPts.length;
+      const hy=validPts.reduce((s,p)=>s+p.y,0)/validPts.length;
+      const d=Math.hypot(fn.x-hx,fn.y-hy);
+      if(d<minD){minD=d;best=si;}
+    }
+    if(best!==-1){f2s[fi]=best;sU.add(best);}
+  }
+  return f2s;
+}
+
+// ─── 7. CANVAS HELPERS ────────────────────────────────────────────────────
+function labelX(nx, canvas, isFront){ return isFront?(1-nx)*canvas.width:nx*canvas.width; }
+function drawLabel(ctx,nx,ny,text,color,canvas,isFront){
+  const x=labelX(nx,canvas,isFront),y=ny*canvas.height;
+  ctx.save();
+  ctx.font="bold 11px 'Space Mono',monospace";
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  const tw=ctx.measureText(text).width+8;
+  ctx.fillStyle="rgba(3,8,16,.85)";
+  ctx.roundRect(x-tw/2,y-7,tw,14,3);ctx.fill();
+  ctx.strokeStyle=color;ctx.lineWidth=1;ctx.stroke();
+  ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=4;
+  ctx.fillText(text,x,y);ctx.restore();
+}
+function drawNameTag(ctx,lm,name,color,canvas,isFront){
+  const mx=(lm[11].x+lm[12].x)/2,my=Math.min(lm[11].y,lm[12].y)-.06;
+  const x=labelX(mx,canvas,isFront),y=my*canvas.height;
+  ctx.save();
+  ctx.font="bold 12px 'Barlow Condensed',sans-serif";
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  const tw=ctx.measureText(name).width+12;
+  ctx.fillStyle="rgba(3,8,16,.9)";
+  ctx.roundRect(x-tw/2,y-9,tw,18,3);ctx.fill();
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=7;
+  ctx.fillText(name,x,y);ctx.restore();
+}
+
+// ─── 8. METRİK UI ─────────────────────────────────────────────────────────
+function ab(id,lbl){return`<div class="ac" id="${id}-c"><div class="ac-lbl">${lbl}</div><div class="ac-val" id="${id}-v">—°</div><div class="bar-wrap"><div class="bar" id="${id}-b"></div></div></div>`;}
+function abw(id,lbl){return`<div class="ac wide" id="${id}-c"><div class="ac-lbl">${lbl}</div><div class="ac-val" id="${id}-v">—°</div><div class="bar-wrap"><div class="bar" id="${id}-b"></div></div></div>`;}
+function si(id,lbl,def){return`<div class="si"><div class="si-lbl">${lbl}</div><div class="si-val" id="${id}">${def}</div></div>`;}
+
+function setAngle(id,deg){
+  const v=document.getElementById(`${id}-v`),b=document.getElementById(`${id}-b`),c=document.getElementById(`${id}-c`);
+  if(!v)return;
+  if(deg===null){v.textContent="—°";if(b)b.style.width="0%";if(c)c.classList.remove("on");return;}
+  v.textContent=`${deg}°`;
+  if(b)b.style.width=`${Math.min(100,(deg/180)*100)}%`;
+  if(c)c.classList.add("on");
+}
+function setAnglePct(id,val,max=100){
+  const v=document.getElementById(`${id}-v`),b=document.getElementById(`${id}-b`),c=document.getElementById(`${id}-c`);
+  if(!v)return;
+  if(val===null){v.textContent="—%";if(b)b.style.width="0%";return;}
+  v.textContent=`${val}%`;
+  if(b)b.style.width=`${Math.min(100,(Math.abs(val)/max)*100)}%`;
+  if(c)c.classList.add("on");
+}
+function setStat(id,active){
+  const el=document.getElementById(id);if(!el)return;
+  el.textContent=active?"ALGILANDI":"HAYIR";
+  el.className="si-val"+(active?" yes":"");
+}
+function setTxt(id,txt,hi=false){
+  const el=document.getElementById(id);if(!el)return;
+  el.textContent=txt;el.className="si-val"+(hi?" yes":"");
+}
+function setSymmetry(uid,score){
+  const s=document.getElementById(`${uid}-sym`),b=document.getElementById(`${uid}-symb`);
+  if(!s)return;
+  if(score===null){s.textContent="—";if(b)b.style.width="0%";return;}
+  s.textContent=`${score}%`;if(b)b.style.width=`${score}%`;
+}
+
+// ─── GLOBAL METRİK PANEL ────────────────────────────────────────────────────
+// fusionTracker'ın aktif slotlarına göre tek bir panel oluşturur.
+// Kamera başına ayrı grup YOK — sadece "KİŞİ 1", "KİŞİ 2" vb. kartlar.
+
+function syncGlobalPersonPanel(){
+  const active = faceDB.activeSlots();
+  const total  = active.length;
+
+  document.getElementById('person-count-val').textContent = total;
+  const noP = document.getElementById('no-person-global');
+  if(noP) noP.style.display = total === 0 ? 'flex' : 'none';
+
+  const metricsBody = document.getElementById('metricsBody');
+  const activeIdxSet = new Set(active.map(s=>s.idx));
+
+  // Artık görünmeyen slotların kartlarını kaldır
+  for(let j=0; j<6; j++){
+    if(!activeIdxSet.has(j)){
+      const card = document.getElementById(`gpcard-${j}`);
+      if(card) card.remove();
+    }
+  }
+
+  // Aktif slotlar için kart oluştur / güncelle
+  for(const slot of active){
+    const j = slot.idx;
+    let card = document.getElementById(`gpcard-${j}`);
+    if(!card){
+      card = buildGlobalPersonCard(j);
+      metricsBody.appendChild(card);
+    }
+    // Kaynak kamera badge güncelle
+    const srcEl = document.getElementById(`gp${j}-sources`);
+    if(srcEl){
+      const names = [...slot.camSources].map(cid=>{
+        const cam = cameras.get(cid);
+        return cam ? cam.name : `CAM ${cid}`;
+      });
+      srcEl.textContent = names.length ? names.join(' · ') : '—';
+    }
+  }
+}
+
+  document.getElementById('person-count-val').textContent = total;
+  const noP = document.getElementById('no-person-global');
+  if(noP) noP.style.display = total === 0 ? 'flex' : 'none';
+
+  const metricsBody = document.getElementById('metricsBody');
+  const activeIdxSet = new Set(active.map(s=>s.idx));
+
+  // Artık görünmeyen slotların kartlarını kaldır
+  for(let j=0; j<6; j++){
+    if(!activeIdxSet.has(j)){
+      const card = document.getElementById(`gpcard-${j}`);
+      if(card) card.remove();
+    }
+  }
+
+  // Aktif slotlar için kart oluştur / güncelle
+  for(const slot of active){
+    const j = slot.idx;
+    let card = document.getElementById(`gpcard-${j}`);
+    if(!card){
+      card = buildGlobalPersonCard(j);
+      metricsBody.appendChild(card);
+    }
+    // Kaynak kamera badge güncelle
+    const srcEl = document.getElementById(`gp${j}-sources`);
+    if(srcEl){
+      const names = [...slot.camSources].map(cid=>{
+        const cam = cameras.get(cid);
+        return cam ? cam.name : `CAM ${cid}`;
+      });
+      srcEl.textContent = names.length ? names.join(' · ') : '—';
+    }
+  }
+}
+
+// Global kişi kartı oluşturma (kameradan bağımsız, global slot indeksine göre)
+function buildGlobalPersonCard(j){
+  const col = COLORS[j % COLORS.length];
+  const uid = `gp${j}`;
+  const el = document.createElement('div');
+  el.className = 'person-card'; el.id = `gpcard-${j}`;
+  el.style.setProperty('--pc', col.hex);
+  el.innerHTML = `
+    <div class="p-header">
+      <div class="p-dot"></div>
+      <div class="p-name">${col.name}</div>
+      <div class="p-cam-tag" id="${uid}-sources" style="color:var(--text-dim)">—</div>
+    </div>
+    <div class="p-body">
+      <div>
+        <div class="sec-title">EKLEM AÇILARI</div>
+        <div class="ag">
+          ${ab(`${uid}-le`,"SOL DİRSEK")}${ab(`${uid}-re`,"SAĞ DİRSEK")}
+          ${ab(`${uid}-ls`,"SOL OMUZ")}${ab(`${uid}-rs`,"SAĞ OMUZ")}
+          ${ab(`${uid}-lk`,"SOL DİZ")}${ab(`${uid}-rk`,"SAĞ DİZ")}
+          ${abw(`${uid}-ss`,"OMUZ GENİŞLİĞİ")}${abw(`${uid}-ha`,"KALÇA AÇISI")}
+        </div>
+      </div>
+      <div id="${uid}-face" style="display:none">
+        <div class="sec-title">YÜZ ANALİZİ</div>
+        <div class="ag">
+          ${ab(`${uid}-roll`,"BAŞ EĞİMİ")}${ab(`${uid}-yaw`,"BAŞ DÖNÜŞÜ")}
+          ${abw(`${uid}-mouth`,"AĞIZ AÇIKLIĞI %")}
+        </div>
+        <div class="sg" style="margin-top:4px">
+          ${si(`${uid}-expr`,"İFADE","—")}${si(`${uid}-smile`,"GÜLÜMSEME","—")}
+          ${si(`${uid}-blink`,"GÖZ KIRPMA","—")}${si(`${uid}-fdet`,"YÜZ","—")}
+        </div>
+      </div>
+      <div>
+        <div class="sec-title">VERİ AKIŞI</div>
+        <div class="sg">
+          ${si(`${uid}-pose`,"VÜCUT","ALGILANDI")}${si(`${uid}-lh`,"SOL EL","HAYIR")}
+          ${si(`${uid}-rh`,"SAĞ EL","HAYIR")}${si(`${uid}-pts`,"NOKTA","0")}
+        </div>
+      </div>
+      <div>
+        <div class="sec-title">SİMETRİ SKORU</div>
+        <div class="sym">
+          <div class="sym-score" id="${uid}-sym">—</div>
+          <div class="sym-lbl">Omuz / Dirsek / Diz simetrisi</div>
+          <div class="sym-wrap"><div class="sym-bar" id="${uid}-symb"></div></div>
+        </div>
+      </div>
+    </div>`;
+  return el;
+}
+
+// Global kişi sayısı güncelleme (kamera olayları için çağrılır)
+function updateGlobalPersonCount(){
+  // artık syncGlobalPersonPanel hallediyor, boş bırakıyoruz
+}
+
+// ─── 9. KAMERA SINIFI ────────────────────────────────────────────────────
+class CameraInstance {
+  constructor(id, name, deviceId){
+    this.id = id;
+    this.name = name;
+    this.deviceId = deviceId;
+    this.color = CAM_COLORS[id % CAM_COLORS.length];
+    this.streaming = false;
+    this.stream = null;
+    this.lastTime = -1;
+    this.fpsCnt = 0;
+    this.fpsT = performance.now();
+    this.animFrame = null;
+    this.slots = createSlots();
+    this.activePersons = new Set();
+    this.facing = 'environment'; // default
+    this.drawUtils = null;
+
+    this._buildDOM();
+  }
+
+  _buildDOM(){
+    const card = document.createElement('div');
+    card.className = 'cam-card';
+    card.id = `camcard-${this.id}`;
+    card.style.setProperty('--cam-color', this.color);
+    card.innerHTML = `
+      <div class="cam-card-header">
+        <div class="cam-card-dot"></div>
+        <div class="cam-card-name" contenteditable="false" id="camname-${this.id}">${this.name}</div>
+        <div class="cam-fps"><span class="fv" id="camfps-${this.id}">0</span> FPS</div>
+        <div class="cam-card-actions">
+          <button class="icon-btn" title="Kamera adını düzenle" id="camedit-${this.id}">✎</button>
+          <button class="icon-btn remove" title="Kamerayı kaldır" id="camremove-${this.id}">✕</button>
+        </div>
+      </div>
+      <div class="cam-canvas-wrap" id="camwrap-${this.id}">
+        <video id="camvid-${this.id}" autoplay playsinline></video>
+        <canvas id="camcanvas-${this.id}"></canvas>
+        <div class="cam-grid-overlay"></div>
+        <div class="cam-corners">
+          <div class="corner-tl"></div><div class="corner-tr"></div>
+          <div class="corner-bl"></div><div class="corner-br"></div>
+        </div>
+        <div class="cam-placeholder" id="camph-${this.id}">
+          <div class="ph-icon">⬡</div>
+          <p>Başlatmak için alttaki butona basın</p>
+        </div>
+        <div class="cam-overlay-info" id="caminfo-${this.id}" style="display:none">
+          <div class="cam-badge-overlay label" id="camlabel-${this.id}">ÖN KAMERA</div>
+          <div class="cam-badge-overlay person-count">KİŞİ: <span id="campersons-${this.id}">0</span></div>
+        </div>
+        <button class="cam-flip-overlay" id="camflip-${this.id}" title="Kamerayı Çevir">⟳</button>
+      </div>
+      <div class="cam-card-footer">
+        <div class="cam-select-wrap">
+          <select class="cam-device-select" id="camselect-${this.id}">
+            ${allDevices.map((d,i)=>`<option value="${d.deviceId}" ${d.deviceId===this.deviceId?'selected':''}>${d.label||'Kamera '+(i+1)}</option>`).join('')}
+          </select>
+        </div>
+        <button class="cam-start-btn" id="camstart-${this.id}">▶ BAŞLAT</button>
+        <button class="cam-shot-btn" id="camshot-${this.id}" disabled title="Ekran görüntüsü">⬛</button>
+      </div>
+    `;
+    this.el = card;
+
+    // Refs
+    this.video    = card.querySelector(`#camvid-${this.id}`);
+    this.canvas   = card.querySelector(`#camcanvas-${this.id}`);
+    this.ctx      = this.canvas.getContext('2d');
+    this.ph       = card.querySelector(`#camph-${this.id}`);
+    this.dot      = card.querySelector('.cam-card-dot');
+    this.fpsEl    = card.querySelector(`#camfps-${this.id}`);
+    this.personEl = card.querySelector(`#campersons-${this.id}`);
+    this.infoEl   = card.querySelector(`#caminfo-${this.id}`);
+    this.labelEl  = card.querySelector(`#camlabel-${this.id}`);
+    this.flipBtn  = card.querySelector(`#camflip-${this.id}`);
+    this.startBtn = card.querySelector(`#camstart-${this.id}`);
+    this.shotBtn  = card.querySelector(`#camshot-${this.id}`);
+    this.selectEl = card.querySelector(`#camselect-${this.id}`);
+    this.nameEl   = card.querySelector(`#camname-${this.id}`);
+
+    this.drawUtils = new DrawingUtils(this.ctx);
+
+    // Olaylar
+    this.startBtn.addEventListener('click', ()=> this.streaming ? this.stop() : this.start());
+    this.shotBtn.addEventListener('click', ()=> this.screenshot());
+    this.flipBtn.addEventListener('click', ()=> this.flip());
+    card.querySelector(`#camremove-${this.id}`).addEventListener('click', ()=> removeCam(this.id));
+
+    const editBtn = card.querySelector(`#camedit-${this.id}`);
+    editBtn.addEventListener('click', ()=>{
+      const ne = this.nameEl;
+      if(ne.contentEditable === 'true'){
+        ne.contentEditable = 'false';
+        this.name = ne.textContent.trim() || this.name;
+        ne.textContent = this.name;
+        editBtn.textContent = '✎';
+        // Metrik panelde kamera adını güncelle
+        document.querySelectorAll(`.p-cam-tag`).forEach(t=>{
+          if(t.getAttribute('data-camid') === String(this.id)) t.textContent = this.name;
+        });
+      } else {
+        ne.contentEditable = 'true';
+        ne.focus();
+        editBtn.textContent = '✓';
+      }
+    });
+
+    this.selectEl.addEventListener('change', ()=>{
+      this.deviceId = this.selectEl.value;
+      if(this.streaming) this.restart();
+    });
+  }
+
+  async start(){
+    if(!modelsReady){ showToast("Modeller henüz yükleniyor..."); return; }
+    this.startBtn.disabled = true;
+    try {
+      await this._openCamera();
+      this.streaming = true;
+      this.el.classList.add('streaming');
+      this.startBtn.textContent = '◼ DURDUR';
+      this.startBtn.classList.add('stop');
+      this.startBtn.disabled = false;
+      this.shotBtn.disabled = false;
+      this.ph.classList.add('hidden');
+      this.infoEl.style.display = 'flex';
+      this.flipBtn.classList.add('visible');
+      this._predict();
+      updateToolbarState();
+    } catch(e){
+      showToast("Kamera hatası: " + e.message);
+      this.startBtn.disabled = false;
+    }
+  }
+
+  stop(){
+    this.streaming = false;
+    if(this.animFrame){ cancelAnimationFrame(this.animFrame); this.animFrame = null; }
+    if(this.stream) this.stream.getTracks().forEach(t=>t.stop());
+    this.stream = null; this.video.srcObject = null;
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.el.classList.remove('streaming');
+    this.startBtn.textContent = '▶ BAŞLAT';
+    this.startBtn.classList.remove('stop');
+    this.shotBtn.disabled = true;
+    this.ph.classList.remove('hidden');
+    this.infoEl.style.display = 'none';
+    this.flipBtn.classList.remove('visible');
+    this.lastTime = -1;
+    this.slots.forEach(s=>{s.active=false;s.age=0;});
+    this._clearPersonCards();
+    this.activePersons.clear();
+    updateGlobalPersonCount();
+    updateToolbarState();
+  }
+
+  async restart(){
+    if(this.stream) this.stream.getTracks().forEach(t=>t.stop());
+    this.stream = null; this.video.srcObject = null;
+    this.lastTime = -1;
+    this.slots.forEach(s=>{s.active=false;s.age=0;});
+    try { await this._openCamera(); }
+    catch(e){ showToast("Kamera değiştirme hatası: " + e.message); }
+  }
+
+  async flip(){
+    this.facing = this.facing === 'user' ? 'environment' : 'user';
+    if(this.streaming) await this.restart();
+  }
+
+  async _openCamera(){
+    const constraints = this.deviceId
+      ? { video: { deviceId:{exact:this.deviceId}, width:{ideal:1280}, height:{ideal:720} } }
+      : { video: { facingMode:{ideal:this.facing}, width:{ideal:1280}, height:{ideal:720} } };
+
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia(constraints); }
+    catch(e){
+      stream = await navigator.mediaDevices.getUserMedia({ video: {width:{ideal:1280},height:{ideal:720}} });
+    }
+    this.stream = stream;
+    this.video.srcObject = stream;
+
+    // Facing mode'u güncelle
+    const track = stream.getVideoTracks()[0];
+    const settings = track.getSettings();
+    if(settings.facingMode) this.facing = settings.facingMode;
+
+    return new Promise((res,rej)=>{
+      this.video.onloadedmetadata = ()=>{
+        this.canvas.width  = this.video.videoWidth  || 1280;
+        this.canvas.height = this.video.videoHeight || 720;
+        const ratio = this.canvas.width / this.canvas.height;
+        const wrap = this.el.querySelector(`#camwrap-${this.id}`);
+        wrap.style.aspectRatio = `${ratio}`;
+        this.video.classList.toggle('mirror', this.facing === 'user');
+        this.labelEl.textContent = this.facing === 'user' ? 'ÖN KAMERA' : 'ARKA KAMERA';
+        this.video.play().catch(e=>console.warn(e));
+        res();
+      };
+      this.video.onerror = rej;
+    });
+  }
+
+  _predict(){
+    if(!this.streaming) return;
+    const now = performance.now();
+
+    this.fpsCnt++;
+    if(now - this.fpsT >= 800){
+      this.fpsEl.textContent = Math.round(this.fpsCnt * 1000 / (now - this.fpsT));
+      this.fpsCnt = 0; this.fpsT = now;
+    }
+    globalFpsCnt++;
+
+    if(this.video.readyState < 2 || this.video.videoWidth === 0){
+      this.animFrame = requestAnimationFrame(()=>this._predict()); return;
+    }
+
+    if(this.lastTime !== this.video.currentTime){
+      this.lastTime = this.video.currentTime;
+      if(this.canvas.width !== this.video.videoWidth || this.canvas.height !== this.video.videoHeight){
+        this.canvas.width  = this.video.videoWidth;
+        this.canvas.height = this.video.videoHeight;
+      }
+
+      const ctx = this.ctx;
+      const canvas = this.canvas;
+      const isFront = this.facing === 'user';
+
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if(isFront){ ctx.translate(canvas.width,0); ctx.scale(-1,1); }
+
+      const pR = poseLM.detectForVideo(this.video, now);
+      const hR = handLM.detectForVideo(this.video, now);
+      const fR = faceLM.detectForVideo(this.video, now);
+
+      const pLMs = pR.landmarks ?? [];
+      const fLMs = fR.faceLandmarks ?? [];
+      const fBSs = fR.faceBlendshapes ?? [];
+
+      // Kamera-içi pose slot eşleştirmesi
+      const p2s = pLMs.length > 0 ? matchPoses(pLMs, this.slots) : [];
+      const active = [...new Set(p2s.filter(j=>j!==-1))];
+
+      // Yüzleri pose'a eşle (kamera-içi)
+      const camSlotFLm = {}, camSlotFBs = {};
+      if(fLMs.length > 0 && pLMs.length > 0){
+        const f2s = matchFaces(fLMs, pLMs, p2s);
+        for(let fi=0; fi<fLMs.length; fi++){
+          const s = f2s[fi];
+          if(s !== -1){ camSlotFLm[s]=fLMs[fi]; camSlotFBs[s]=fBSs[fi]??null; }
+        }
+      }
+
+      // faceDB'ye bu kameranın yüzlerini raporla
+      const faceReports = [];
+      for(const [camSlotStr, flm] of Object.entries(camSlotFLm)){
+        faceReports.push({flm, poseSlot: parseInt(camSlotStr), camId: this.id});
+      }
+      faceDB.reportFaces(this.id, faceReports);
+
+      // Kamera-içi slot -> global slot
+      // Yüzü olan kişiler: faceDB'den resolve et
+      const camSlot2Global = new Map();
+      for(let i=0; i<pLMs.length; i++){
+        const cs = p2s[i]; if(cs === -1) continue;
+        const flm = camSlotFLm[cs];
+        if(flm){
+          const emb = faceDB.extractEmbedding(flm);
+          const g = faceDB.resolveSlot(emb);
+          if(g !== -1){ camSlot2Global.set(cs, g); continue; }
+        }
+        // Yüz yok veya henüz tanınmadı — kamera-içi slot numarasını kullan
+        camSlot2Global.set(cs, cs);
+      }
+
+      // Kişi sayacı
+      this.activePersons = new Set(active);
+      this.personEl.textContent = active.length;
+
+      // El durumunu sıfırla
+      for(const gs of camSlot2Global.values()){
+        setStat(`gp${gs}-lh`, false); setStat(`gp${gs}-rh`, false);
+      }
+
+      // Pose çizimi + metrik güncelleme
+      for(let i=0; i<pLMs.length; i++){
+        const cs = p2s[i]; if(cs === -1) continue;
+        const gs = camSlot2Global.get(cs) ?? cs;
+        const lm = pLMs[i];
+        const col = COLORS[gs % COLORS.length];
+        const uid = `gp${gs}`;
+
+        ctx.shadowColor=col.hex; ctx.shadowBlur=10;
+        this.drawUtils.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, {color:col.hex,lineWidth:2.5});
+        this.drawUtils.drawLandmarks(lm, {color:"#fff",fillColor:col.hex,lineWidth:1,radius:3.5});
+        ctx.shadowBlur=0;
+
+        ctx.restore(); ctx.save();
+        drawNameTag(ctx, lm, col.name, col.hex, canvas, isFront);
+        if(isFront){ ctx.translate(canvas.width,0); ctx.scale(-1,1); }
+
+        const le=safeAngle(lm,11,13,15), re=safeAngle(lm,12,14,16);
+        const ls=safeAngle(lm,13,11,23), rs=safeAngle(lm,14,12,24);
+        const lk=safeAngle(lm,23,25,27), rk=safeAngle(lm,24,26,28);
+        const ss=safeAngle(lm,23,11,12), ha=safeAngle(lm,11,23,25);
+
+        setAngle(`${uid}-le`,le); setAngle(`${uid}-re`,re);
+        setAngle(`${uid}-ls`,ls); setAngle(`${uid}-rs`,rs);
+        setAngle(`${uid}-lk`,lk); setAngle(`${uid}-rk`,rk);
+        setAngle(`${uid}-ss`,ss); setAngle(`${uid}-ha`,ha);
+
+        ctx.restore(); ctx.save();
+        if(le!==null) drawLabel(ctx,lm[13].x,lm[13].y,`${le}°`,col.hex,canvas,isFront);
+        if(re!==null) drawLabel(ctx,lm[14].x,lm[14].y,`${re}°`,col.hex,canvas,isFront);
+        if(lk!==null) drawLabel(ctx,lm[25].x,lm[25].y,`${lk}°`,col.hex,canvas,isFront);
+        if(rk!==null) drawLabel(ctx,lm[26].x,lm[26].y,`${rk}°`,col.hex,canvas,isFront);
+        if(isFront){ ctx.translate(canvas.width,0); ctx.scale(-1,1); }
+
+        const ptsEl = document.getElementById(`${uid}-pts`);
+        if(ptsEl) ptsEl.textContent = lm.length;
+
+        const pairs=[[le,re],[ls,rs],[lk,rk]].filter(([a,b])=>a!==null&&b!==null);
+        setSymmetry(uid, pairs.length>0?Math.round(Math.max(0,100-(pairs.reduce((s,[a,b])=>s+Math.abs(a-b),0)/pairs.length/90)*100)):null);
+
+        const flm=camSlotFLm[cs], fbs=camSlotFBs[cs];
+        const faceSec=document.getElementById(`${uid}-face`);
+        if(flm){
+          if(faceSec) faceSec.style.display="block";
+          ctx.save(); ctx.globalAlpha=.85;
+          this.drawUtils.drawConnectors(flm,FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,{color:col.hex,lineWidth:1.5});
+          this.drawUtils.drawConnectors(flm,FaceLandmarker.FACE_LANDMARKS_LIPS,{color:col.hex,lineWidth:1.2});
+          this.drawUtils.drawConnectors(flm,FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,{color:"#30FF30",lineWidth:1.2});
+          this.drawUtils.drawConnectors(flm,FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,{color:"#FF3030",lineWidth:1.2});
+          ctx.globalAlpha=1; ctx.restore();
+          setAnglePct(`${uid}-roll`,headRoll(flm),90);
+          setAnglePct(`${uid}-yaw`,headYaw(flm),90);
+          setAnglePct(`${uid}-mouth`,mouthOpen(flm),100);
+          const cats=fbs?.categories??[];
+          const smile=(bs(cats,"mouthSmileLeft")+bs(cats,"mouthSmileRight"))/2;
+          const blink=(bs(cats,"eyeBlinkLeft")+bs(cats,"eyeBlinkRight"))/2;
+          setTxt(`${uid}-expr`,expression(cats));
+          setTxt(`${uid}-smile`,smile>.4?"EVET":"HAYIR",smile>.4);
+          setTxt(`${uid}-blink`,blink>.6?"EVET":"HAYIR",blink>.6);
+          setTxt(`${uid}-fdet`,"ALGILANDI",true);
+        } else {
+          if(faceSec) faceSec.style.display="none";
+        }
+      }
+
+      // Eller
+      const rawH=hR.landmarks??[], rawD=hR.handednesses??hR.handedness??[];
+      for(let h=0;h<rawH.length;h++){
+        const hlm=rawH[h], catArr=rawD[h];
+        let catName=null;
+        if(Array.isArray(catArr)&&catArr.length>0) catName=catArr[0].categoryName;
+        else if(catArr?.categoryName) catName=catArr.categoryName;
+        const isLeft=catName==="Right", isRight=catName==="Left";
+        const wrist=hlm[0]; let minD=Infinity, bestCS=active.length>0?active[0]:0;
+        for(let pi=0;pi<pLMs.length;pi++){
+          const sii=p2s[pi]; if(sii===-1) continue;
+          const lm=pLMs[pi];
+          const d=Math.min(Math.hypot(wrist.x-lm[15].x,wrist.y-lm[15].y),Math.hypot(wrist.x-lm[16].x,wrist.y-lm[16].y));
+          if(d<minD){minD=d;bestCS=sii;}
+        }
+        const bestGS = camSlot2Global.get(bestCS) ?? bestCS;
+        const uid=`gp${bestGS}`;
+        if(isLeft) setStat(`${uid}-lh`,true);
+        if(isRight) setStat(`${uid}-rh`,true);
+        const hcol=COLORS[bestGS%COLORS.length];
+        ctx.shadowColor=hcol.hex; ctx.shadowBlur=8;
+        this.drawUtils.drawConnectors(hlm,HandLandmarker.HAND_CONNECTIONS,{color:hcol.hex,lineWidth:2});
+        this.drawUtils.drawLandmarks(hlm,{color:"#fff",fillColor:hcol.hex,lineWidth:1,radius:2.5});
+        ctx.shadowBlur=0;
+      }
+
+      ctx.restore();
+    }
+
+    this.animFrame = requestAnimationFrame(()=>this._predict());
+  }
+
+  _syncPersonCards(active, centroids){
+    // Artık faceDB hallediyor — burada sadece pose centroidlerini iletiyoruz
+    // faceDB.reportFaces() _predict() içinde çağrılır, burası boş kalabilir
+  }
+
+  _clearPersonCards(){
+    faceDB.removeCam(this.id);
+  }
+
+  screenshot(){
+    const tmp = document.createElement('canvas');
+    tmp.width = this.canvas.width; tmp.height = this.canvas.height;
+    const t = tmp.getContext('2d');
+    if(this.facing === 'user'){
+      t.save(); t.translate(tmp.width,0); t.scale(-1,1);
+      t.drawImage(this.video,0,0,tmp.width,tmp.height); t.restore();
+      t.save(); t.translate(tmp.width,0); t.scale(-1,1);
+      t.drawImage(this.canvas,0,0); t.restore();
+    } else {
+      t.drawImage(this.video,0,0,tmp.width,tmp.height);
+      t.drawImage(this.canvas,0,0);
+    }
+    const a = document.createElement('a');
+    a.download = `${this.name.toLowerCase().replace(/\s+/g,'-')}-${Date.now()}.png`;
+    a.href = tmp.toDataURL('image/png');
+    a.click();
+    showToast("Ekran görüntüsü kaydedildi");
+  }
+}
+
+// ─── 10. KAMERA YÖNETİMİ ─────────────────────────────────────────────────
+function addCam(name, deviceId){
+  const id = camIdCounter++;
+  const cam = new CameraInstance(id, name, deviceId);
+  cameras.set(id, cam);
+
+  const grid = document.getElementById('camerasGrid');
+  const empty = document.getElementById('emptyCameras');
+  if(empty) empty.remove();
+  grid.appendChild(cam.el);
+
+  document.getElementById('cam-count-val').textContent = cameras.size;
+  updateToolbarState();
+  return cam;
+}
+
+function removeCam(id){
+  const cam = cameras.get(id);
+  if(!cam) return;
+  if(cam.streaming) cam.stop();
+  cam.el.remove();
+  cam._clearPersonCards();
+  cameras.delete(id);
+  document.getElementById('cam-count-val').textContent = cameras.size;
+
+  if(cameras.size === 0){
+    const grid = document.getElementById('camerasGrid');
+    const empty = document.createElement('div');
+    empty.className = 'empty-cameras'; empty.id = 'emptyCameras';
+    empty.innerHTML = `<div class="empty-icon">⬡</div><p>HENÜz KAMERA EKLENMEDİ</p><p class="hint">Yukarıdaki "+ KAMERA EKLE" butonuna basın</p>`;
+    grid.appendChild(empty);
+  }
+  updateGlobalPersonCount();
+  updateToolbarState();
+}
+
+function updateToolbarState(){
+  const hasAny = cameras.size > 0;
+  const hasStreaming = [...cameras.values()].some(c=>c.streaming);
+  document.getElementById('btnStopAll').disabled = !hasStreaming;
+  document.getElementById('btnShotAll').disabled = !hasStreaming;
+}
+
+// Tümünü durdur
+document.getElementById('btnStopAll').addEventListener('click', ()=>{
+  for(const cam of cameras.values()) if(cam.streaming) cam.stop();
+});
+
+// Yüz kimliklerini sil
+document.getElementById('btnClearFaces').addEventListener('click', ()=>{
+  faceDB.clearAll();
+  // Metrik paneldeki tüm kişi kartlarını kaldır
+  for(let j=0; j<6; j++){
+    const card = document.getElementById(`gpcard-${j}`);
+    if(card) card.remove();
+  }
+  document.getElementById('person-count-val').textContent = '0';
+  const noP = document.getElementById('no-person-global');
+  if(noP) noP.style.display = 'flex';
+  showToast("Yüz kayıtları silindi — yeniden öğreniliyor");
+});
+
+// Tümünü yakala
+document.getElementById('btnShotAll').addEventListener('click', ()=>{
+  for(const cam of cameras.values()) if(cam.streaming) cam.screenshot();
+});
+
+// ─── 11. MODAL ───────────────────────────────────────────────────────────
+const modal = document.getElementById('addCamModal');
+const modalDevSel = document.getElementById('modalDeviceSelect');
+const modalNameInput = document.getElementById('modalCamName');
+
+function openModal(){
+  // Cihaz listesini güncelle
+  modalDevSel.innerHTML = allDevices.length === 0
+    ? '<option value="">Kamera bulunamadı</option>'
+    : allDevices.map((d,i)=>`<option value="${d.deviceId}">${d.label||'Kamera '+(i+1)}</option>`).join('');
+  modalNameInput.value = `KAMERA ${cameras.size + 1}`;
+  modal.classList.add('open');
+  modalNameInput.select();
+}
+function closeModal(){ modal.classList.remove('open'); }
+
+document.getElementById('btnAddCam').addEventListener('click', async()=>{
+  if(!modelsReady){ showToast("Modeller henüz yükleniyor..."); return; }
+  await refreshDevices();
+  openModal();
+});
+document.getElementById('modalClose').addEventListener('click', closeModal);
+document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+modal.addEventListener('click', e=>{ if(e.target === modal) closeModal(); });
+
+document.getElementById('modalAddBtn').addEventListener('click', ()=>{
+  const name = modalNameInput.value.trim() || `KAMERA ${cameras.size+1}`;
+  const deviceId = modalDevSel.value || null;
+  closeModal();
+  addCam(name.toUpperCase(), deviceId);
+  showToast(`${name} eklendi`);
+});
+
+// Enter ile onayla
+modalNameInput.addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('modalAddBtn').click(); });
+
+// ─── 12. TOAST ───────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2500);
+}
+
+// ─── 13. BAŞLANGIÇ ────────────────────────────────────────────────────────
+document.getElementById('btnAddCam').disabled = true; // Modeller hazır olana kadar
+
+// İlk cihaz listesi
+(async()=>{
+  await refreshDevices();
+  // Modal select'ini hazırla
+  modalDevSel.innerHTML = allDevices.length === 0
+    ? '<option value="">İzin bekleniyor...</option>'
+    : allDevices.map((d,i)=>`<option value="${d.deviceId}">${d.label||'Kamera '+(i+1)}</option>`).join('');
+})();
+
+// Cihaz değişimini dinle
+navigator.mediaDevices.addEventListener('devicechange', async()=>{
+  await refreshDevices();
+  for(const cam of cameras.values()){
+    const sel = cam.selectEl;
+    if(sel){
+      sel.innerHTML = allDevices.map((d,i)=>`<option value="${d.deviceId}" ${d.deviceId===cam.deviceId?'selected':''}>${d.label||'Kamera '+(i+1)}</option>`).join('');
+    }
+  }
+});
+
+</script>
+</body>
+</html>
